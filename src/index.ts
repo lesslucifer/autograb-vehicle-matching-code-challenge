@@ -7,7 +7,7 @@ async function main() {
   const dbService = DbService.INST;
   const vehicleRepo = new VehicleRepository();
   const inputService = new InputService();
-  const matchingService = new MatchingService(inputService);
+  const matchingService = new MatchingService();
 
   const vehicles = await vehicleRepo.getAllWithListingCount();
   const lines = inputService.readLines();

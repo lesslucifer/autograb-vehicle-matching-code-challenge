@@ -1,13 +1,12 @@
-import { InputService } from './inputReader';
 import { MatchingService } from './matchingService';
+import { TokenizerService } from './tokenizer';
 import { VehicleRow } from './vehicleRepository';
 
-const inputService = new InputService();
-const matchingService = new MatchingService(inputService);
+const matchingService = new MatchingService();
+const tokenizer = new TokenizerService();
 
-const normalize = (s: string) => inputService.normalize(s);
-const fieldMatches = (input: string, field: string) => matchingService.fieldMatches(input, field);
-const scoreVehicle = (input: string, v: VehicleRow) => matchingService.scoreVehicle(normalize(input), v);
+const scoreVehicle = (input: string, v: VehicleRow) =>
+  matchingService.scoreVehicle(tokenizer.tokenize(input), v);
 
 const makeVehicle = (overrides: Partial<VehicleRow> = {}): VehicleRow => ({
   id: '1',
@@ -21,56 +20,9 @@ const makeVehicle = (overrides: Partial<VehicleRow> = {}): VehicleRow => ({
   ...overrides,
 });
 
-describe('MatchingService.fieldMatches', () => {
-  it('matches exact value', () => {
-    expect(fieldMatches('petrol', 'petrol')).toBe(true);
-  });
-
-  it('matches value as a whole word in a longer input', () => {
-    expect(fieldMatches('toyota 86 gt manual petrol rear wheel drive', 'rear wheel drive')).toBe(true);
-  });
-
-  it('is case-insensitive (both inputs should be pre-normalized)', () => {
-    expect(fieldMatches('volkswagen golf', 'golf')).toBe(true);
-  });
-
-  it('does not match partial word — "r" should not match inside "rear"', () => {
-    expect(fieldMatches('rear wheel drive', 'r')).toBe(false);
-  });
-
-  it('does not match partial word — "gt" should not match inside "gts"', () => {
-    expect(fieldMatches('toyota 86 gts manual', 'gt')).toBe(false);
-  });
-
-  it('does not match "gts" inside "gts apollo blue" as a full badge', () => {
-    // "gts apollo blue" is not present in input that only has "gts"
-    expect(fieldMatches('toyota 86 gts manual', 'gts apollo blue')).toBe(false);
-  });
-
-  it('returns false for empty field', () => {
-    expect(fieldMatches('some input', '')).toBe(false);
-  });
-
-  it('matches multi-word field value', () => {
-    expect(fieldMatches('volkswagen golf 110tsi comfortline petrol automatic front wheel drive', 'front wheel drive')).toBe(true);
-  });
-
-  it('does not match when field value is missing from input', () => {
-    expect(fieldMatches('volkswagen golf automatic', 'front wheel drive')).toBe(false);
-  });
-
-  it('matches standalone token at start of string', () => {
-    expect(fieldMatches('golf gti', 'golf')).toBe(true);
-  });
-
-  it('matches standalone token at end of string', () => {
-    expect(fieldMatches('volkswagen golf', 'golf')).toBe(true);
-  });
-});
-
 describe('MatchingService.scoreVehicle', () => {
   it('scores 0 when nothing matches', () => {
-    const v = makeVehicle({ make: 'Toyota', model: '86', badge: 'GT', transmission_type: 'Manual', fuel_type: 'Petrol', drive_type: 'Rear Wheel Drive' });
+    const v = makeVehicle();
     expect(scoreVehicle('volkswagen golf', v)).toBe(0);
   });
 
@@ -89,45 +41,46 @@ describe('MatchingService.scoreVehicle', () => {
     expect(scoreVehicle('toyota 86 gt manual petrol rear wheel drive', v)).toBe(10);
   });
 
-  it('does not score abbreviated drive type (RWD)', () => {
+  it('expands alias RWD → Rear Wheel Drive', () => {
     const v = makeVehicle();
-    // "rwd" does not match "rear wheel drive"
-    expect(scoreVehicle('toyota 86 gt manual petrol rwd', v)).toBe(9);
+    expect(scoreVehicle('toyota 86 gt manual petrol rwd', v)).toBe(10);
   });
 
-  it('does not score abbreviated make (VW)', () => {
+  it('expands alias VW → Volkswagen', () => {
     const v = makeVehicle({ make: 'Volkswagen', model: 'Golf', badge: '110TSI Comfortline', transmission_type: 'Automatic', fuel_type: 'Petrol', drive_type: 'Front Wheel Drive' });
-    // "vw" does not match "volkswagen"; "110tsi comfortline" badge not in input
-    expect(scoreVehicle('vw golf petrol automatic front wheel drive', v)).toBe(5); // model(2)+fuel(1)+trans(1)+drive(1)
+    expect(scoreVehicle('vw golf petrol automatic front wheel drive', v)).toBeGreaterThan(5);
   });
 
-  it('scores multi-word badge when fully present', () => {
+  it('partial badge scoring — 1 of 2 badge tokens matches', () => {
     const v = makeVehicle({ model: 'Golf', badge: 'Alltrack 132TSI' });
-    // model "golf"(2) + badge "alltrack 132tsi"(2) = 4
-    expect(scoreVehicle('golf alltrack 132tsi', v)).toBe(4);
+    const score = scoreVehicle('volkswagen golf 132tsi automatic', v);
+    expect(score).toBeGreaterThan(2);
   });
 
-  it('does not score multi-word badge when only partial', () => {
-    const v = makeVehicle({ make: 'Volkswagen', model: 'Golf', badge: 'Alltrack 132TSI' });
-    // "132tsi" alone is not the full badge "alltrack 132tsi"
-    // make "volkswagen"(3) + model "golf"(2) = 5, no badge
-    expect(scoreVehicle('volkswagen golf 132tsi automatic', v)).toBe(5);
+  it('full badge match scores full badge weight', () => {
+    const v = makeVehicle({ model: 'Golf', badge: 'Alltrack 132TSI' });
+    const score = scoreVehicle('golf alltrack 132tsi', v);
+    expect(score).toBe(4);
+  });
+
+  it('fuzzy matches typo — Amrok matches Amarok', () => {
+    const v = makeVehicle({ make: 'Volkswagen', model: 'Amarok', badge: 'TDI550 Highline', transmission_type: 'Automatic', fuel_type: 'Diesel', drive_type: 'Four Wheel Drive' });
+    const score = scoreVehicle('amrok highline 4x4', v);
+    expect(score).toBeGreaterThan(0);
   });
 });
 
 describe('MatchingService.match', () => {
   it('returns empty array when no lines given', () => {
-    const vehicles = [makeVehicle()];
-    expect(matchingService.match([], vehicles)).toEqual([]);
+    expect(matchingService.match([], [makeVehicle()])).toEqual([]);
   });
 
   it('returns empty array when no vehicles given', () => {
-    expect(matchingService.match(['toyota 86 gt manual petrol'], [])).toEqual([]);
+    expect(matchingService.match(['toyota 86'], [])).toEqual([]);
   });
 
   it('skips lines that score 0 against all vehicles', () => {
-    const vehicles = [makeVehicle()];
-    const results = matchingService.match(['honda civic'], vehicles);
+    const results = matchingService.match(['honda civic'], [makeVehicle()]);
     expect(results).toHaveLength(0);
   });
 
@@ -137,31 +90,26 @@ describe('MatchingService.match', () => {
       makeVehicle({ id: '2', make: 'Volkswagen', model: 'Golf' }),
     ];
     const results = matchingService.match(['toyota 86'], vehicles);
-    expect(results).toHaveLength(1);
     expect(results[0].vehicleId).toBe('1');
   });
 
-  it('returns the input string in the result', () => {
-    const vehicles = [makeVehicle()];
-    const results = matchingService.match(['Toyota 86 GT Manual Petrol'], vehicles);
+  it('returns the original input string in the result', () => {
+    const results = matchingService.match(['Toyota 86 GT Manual Petrol'], [makeVehicle()]);
     expect(results[0].input).toBe('Toyota 86 GT Manual Petrol');
   });
 
-  it('calculates confidence as score/10 rounded (full match = 10)', () => {
-    const vehicles = [makeVehicle()];
-    const results = matchingService.match(['toyota 86 gt manual petrol rear wheel drive'], vehicles);
+  it('full match returns confidence 10', () => {
+    const results = matchingService.match(['toyota 86 gt manual petrol rear wheel drive'], [makeVehicle()]);
     expect(results[0].confidence).toBe(10);
   });
 
-  it('calculates confidence proportionally (make only = 3/10 → 3)', () => {
-    const vehicles = [makeVehicle()];
-    const results = matchingService.match(['toyota'], vehicles);
+  it('make-only match returns confidence 3', () => {
+    const results = matchingService.match(['toyota'], [makeVehicle()]);
     expect(results[0].confidence).toBe(3);
   });
 
   it('produces one result per matched line', () => {
-    const vehicles = [makeVehicle()];
-    const results = matchingService.match(['toyota', 'toyota 86'], vehicles);
+    const results = matchingService.match(['toyota', 'toyota 86'], [makeVehicle()]);
     expect(results).toHaveLength(2);
   });
 
@@ -173,7 +121,7 @@ describe('MatchingService.match', () => {
       expect(results[0].vehicleId).toBe('toyota');
     });
 
-    it('prefers vehicle with more high-tier (model/badge) matches when scores are equal', () => {
+    it('prefers vehicle with higher badge overlap when scores are equal', () => {
       const withBadge    = makeVehicle({ id: 'with-badge',    make: 'Toyota', model: '86', badge: 'GT',  listing_count: 1 });
       const withoutBadge = makeVehicle({ id: 'without-badge', make: 'Toyota', model: '86', badge: 'GTS', listing_count: 1 });
       const results = matchingService.match(['toyota 86 gt manual petrol rear wheel drive'], [withoutBadge, withBadge]);

@@ -5,31 +5,6 @@ import { InputService } from './inputReader';
 jest.mock('fs');
 const mockedReadFileSync = fs.readFileSync as jest.MockedFunction<typeof fs.readFileSync>;
 
-describe('InputService.normalize', () => {
-  const service = new InputService();
-  const normalize = (s: string) => service.normalize(s);
-
-  it('lowercases input', () => {
-    expect(normalize('Volkswagen')).toBe('volkswagen');
-  });
-
-  it('replaces punctuation with spaces', () => {
-    expect(normalize('Hybrid-Petrol')).toBe('hybrid petrol');
-  });
-
-  it('collapses multiple spaces', () => {
-    expect(normalize('Four  Wheel  Drive')).toBe('four wheel drive');
-  });
-
-  it('trims leading and trailing whitespace', () => {
-    expect(normalize('  Golf  ')).toBe('golf');
-  });
-
-  it('strips slashes and special chars', () => {
-    expect(normalize('h/line 4x4')).toBe('h line 4x4');
-  });
-});
-
 describe('InputService.readLines', () => {
   afterEach(() => jest.resetAllMocks());
 
