@@ -42,7 +42,7 @@ describe('Integration: match all input lines against real DB', () => {
   let results: MatchResult[];
 
   beforeAll(() => {
-    results = matchingService.match(inputs, vehicles);
+    results = inputs.map((input) => matchingService.match(input, vehicles));
   });
 
   it('loads vehicles from the database', () => {

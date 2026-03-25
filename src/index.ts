@@ -11,7 +11,7 @@ async function main() {
 
   const vehicles = await vehicleRepo.getAllWithListingCount();
   const lines = inputService.readLines();
-  const results = matchingService.match(lines, vehicles);
+  const results = lines.map((input) => matchingService.match(input, vehicles));
 
   for (const { input, vehicleId, confidence } of results) {
     console.log(`Input: ${input}`);

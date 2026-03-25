@@ -1,6 +1,4 @@
 import { distance } from 'fastest-levenshtein';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { removeStopwords } = require('stopword') as { removeStopwords: (tokens: string[]) => string[] };
 import aliases from './aliases.json';
 
 const FUZZY_MIN_LEN = 5;
@@ -13,7 +11,8 @@ export class TokenizerService {
     const normalized = input.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
     const expanded = this.expandAliases(normalized);
     const tokens = expanded.split(' ').filter(Boolean);
-    return removeStopwords(tokens);
+    return tokens
+    // return removeStopwords(tokens);
   }
 
   private expandAliases(s: string): string {
@@ -25,11 +24,6 @@ export class TokenizerService {
       result = result.replace(re, canonical);
     }
     return result;
-  }
-
-  maxOverlapScore(fieldTokenCount: number): number {
-    if (fieldTokenCount === 0) return 0;
-    return Math.sqrt(fieldTokenCount);
   }
 
   scoreTokenOverlap(inputTokens: string[], fieldTokens: string[]): number {

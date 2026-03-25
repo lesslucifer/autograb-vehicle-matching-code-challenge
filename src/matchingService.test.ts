@@ -71,17 +71,14 @@ describe('MatchingService.scoreVehicle', () => {
 });
 
 describe('MatchingService.match', () => {
-  it('returns empty array when no lines given', () => {
-    expect(matchingService.match([], [makeVehicle()])).toEqual([]);
+  it('returns no-match result when no vehicles given', () => {
+    const result = matchingService.match('toyota 86', []);
+    expect(result.vehicleId).toBe('');
   });
 
-  it('returns empty array when no vehicles given', () => {
-    expect(matchingService.match(['toyota 86'], [])).toEqual([]);
-  });
-
-  it('skips lines that score 0 against all vehicles', () => {
-    const results = matchingService.match(['honda civic'], [makeVehicle()]);
-    expect(results).toHaveLength(0);
+  it('returns no-match when input scores 0 against all vehicles', () => {
+    const result = matchingService.match('honda civic', [makeVehicle()]);
+    expect(result.vehicleId).toBe('');
   });
 
   it('matches a line to the highest-scoring vehicle', () => {
@@ -89,27 +86,27 @@ describe('MatchingService.match', () => {
       makeVehicle({ id: '1', make: 'Toyota', model: '86' }),
       makeVehicle({ id: '2', make: 'Volkswagen', model: 'Golf' }),
     ];
-    const results = matchingService.match(['toyota 86'], vehicles);
-    expect(results[0].vehicleId).toBe('1');
+    const result = matchingService.match('toyota 86', vehicles);
+    expect(result.vehicleId).toBe('1');
   });
 
   it('returns the original input string in the result', () => {
-    const results = matchingService.match(['Toyota 86 GT Manual Petrol'], [makeVehicle()]);
-    expect(results[0].input).toBe('Toyota 86 GT Manual Petrol');
+    const result = matchingService.match('Toyota 86 GT Manual Petrol', [makeVehicle()]);
+    expect(result.input).toBe('Toyota 86 GT Manual Petrol');
   });
 
   it('full match returns confidence 10', () => {
-    const results = matchingService.match(['toyota 86 gt manual petrol rear wheel drive'], [makeVehicle()]);
-    expect(results[0].confidence).toBe(10);
+    const result = matchingService.match('toyota 86 gt manual petrol rear wheel drive', [makeVehicle()]);
+    expect(result.confidence).toBe(10);
   });
 
   it('make-only match returns confidence 3', () => {
-    const results = matchingService.match(['toyota'], [makeVehicle()]);
-    expect(results[0].confidence).toBe(3);
+    const result = matchingService.match('toyota', [makeVehicle()]);
+    expect(result.confidence).toBe(3);
   });
 
-  it('produces one result per matched line', () => {
-    const results = matchingService.match(['toyota', 'toyota 86'], [makeVehicle()]);
+  it('produces one result per matched line when used with map', () => {
+    const results = ['toyota', 'toyota 86'].map((input) => matchingService.match(input, [makeVehicle()]));
     expect(results).toHaveLength(2);
   });
 
@@ -117,22 +114,22 @@ describe('MatchingService.match', () => {
     it('prefers vehicle whose make appears in the input when scores are equal', () => {
       const toyota = makeVehicle({ id: 'toyota', make: 'Toyota', model: '86', badge: '', fuel_type: 'Petrol', transmission_type: 'Manual', drive_type: 'Rear Wheel Drive', listing_count: 1 });
       const honda  = makeVehicle({ id: 'honda',  make: 'Honda',  model: '86', badge: '', fuel_type: 'Petrol', transmission_type: 'Manual', drive_type: 'Rear Wheel Drive', listing_count: 1 });
-      const results = matchingService.match(['toyota 86 petrol manual rear wheel drive'], [honda, toyota]);
-      expect(results[0].vehicleId).toBe('toyota');
+      const result = matchingService.match('toyota 86 petrol manual rear wheel drive', [honda, toyota]);
+      expect(result.vehicleId).toBe('toyota');
     });
 
     it('prefers vehicle with higher badge overlap when scores are equal', () => {
       const withBadge    = makeVehicle({ id: 'with-badge',    make: 'Toyota', model: '86', badge: 'GT',  listing_count: 1 });
       const withoutBadge = makeVehicle({ id: 'without-badge', make: 'Toyota', model: '86', badge: 'GTS', listing_count: 1 });
-      const results = matchingService.match(['toyota 86 gt manual petrol rear wheel drive'], [withoutBadge, withBadge]);
-      expect(results[0].vehicleId).toBe('with-badge');
+      const result = matchingService.match('toyota 86 gt manual petrol rear wheel drive', [withoutBadge, withBadge]);
+      expect(result.vehicleId).toBe('with-badge');
     });
 
     it('falls back to listing_count when all else is equal', () => {
       const popular = makeVehicle({ id: 'popular', listing_count: 10 });
       const rare    = makeVehicle({ id: 'rare',    listing_count: 1  });
-      const results = matchingService.match(['toyota 86 gt manual petrol rear wheel drive'], [rare, popular]);
-      expect(results[0].vehicleId).toBe('popular');
+      const result = matchingService.match('toyota 86 gt manual petrol rear wheel drive', [rare, popular]);
+      expect(result.vehicleId).toBe('popular');
     });
   });
 });

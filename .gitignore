@@ -45,3 +45,4 @@ dist
 
 # Postgres data directory (Docker)
 postgres_data
+.DS_Store
