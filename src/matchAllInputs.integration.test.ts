@@ -1,10 +1,8 @@
-import { InputService } from './inputReader';
 import { MatchingService, MatchResult } from './matchingService';
 import { VehicleRepository, VehicleRow } from './vehicleRepository';
 import { DbService } from './db';
 
-const inputService = new InputService();
-const matchingService = new MatchingService(inputService);
+const matchingService = new MatchingService();
 const vehicleRepo = new VehicleRepository();
 
 let vehicles: VehicleRow[];

@@ -38,12 +38,12 @@ describe('MatchingService.scoreVehicle', () => {
 
   it('scores all fields (max 10)', () => {
     const v = makeVehicle();
-    expect(scoreVehicle('toyota 86 gt manual petrol rear wheel drive', v)).toBe(10);
+    expect(scoreVehicle('toyota 86 gt manual petrol rear wheel drive', v)).toBeCloseTo(10.73, 1);
   });
 
   it('expands alias RWD → Rear Wheel Drive', () => {
     const v = makeVehicle();
-    expect(scoreVehicle('toyota 86 gt manual petrol rwd', v)).toBe(10);
+    expect(scoreVehicle('toyota 86 gt manual petrol rwd', v)).toBeCloseTo(10.73, 1);
   });
 
   it('expands alias VW → Volkswagen', () => {
@@ -60,7 +60,7 @@ describe('MatchingService.scoreVehicle', () => {
   it('full badge match scores full badge weight', () => {
     const v = makeVehicle({ model: 'Golf', badge: 'Alltrack 132TSI' });
     const score = scoreVehicle('golf alltrack 132tsi', v);
-    expect(score).toBe(4);
+    expect(score).toBeCloseTo(4.83, 1);
   });
 
   it('fuzzy matches typo — Amrok matches Amarok', () => {

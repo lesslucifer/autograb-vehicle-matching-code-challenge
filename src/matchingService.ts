@@ -10,7 +10,7 @@ const FIELDS: Array<{ key: keyof VehicleRow; weight: number }> = [
   { key: 'drive_type',        weight: 1 },
 ];
 
-const MAX_SCORE = 10;
+const MAX_SCORE = 11;
 
 export interface MatchResult {
   input: string;

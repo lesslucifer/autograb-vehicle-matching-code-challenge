@@ -27,27 +27,37 @@ export class TokenizerService {
     return result;
   }
 
+  maxOverlapScore(fieldTokenCount: number): number {
+    if (fieldTokenCount === 0) return 0;
+    return Math.sqrt(fieldTokenCount);
+  }
+
   scoreTokenOverlap(inputTokens: string[], fieldTokens: string[]): number {
     if (fieldTokens.length === 0) return 0;
 
-    let matched = 0;
+    let totalQuality = 0;
     for (const ft of fieldTokens) {
-      if (this.anyFuzzyMatch(ft, inputTokens)) matched++;
+      totalQuality += this.bestMatchQuality(ft, inputTokens);
     }
-    return matched / fieldTokens.length;
+    return totalQuality / Math.sqrt(fieldTokens.length);
   }
 
-  private anyFuzzyMatch(target: string, candidates: string[]): boolean {
+  private bestMatchQuality(target: string, candidates: string[]): number {
+    const EXACT_SCORE = 1.0;
+    const FUZZY_SCORE = 0.5;
+
+    let best = 0;
     for (const c of candidates) {
-      if (c === target) return true;
+      if (c === target) return EXACT_SCORE;
       if (
+        best < FUZZY_SCORE &&
         target.length >= FUZZY_MIN_LEN &&
         c.length >= FUZZY_MIN_LEN &&
         distance(c, target) <= FUZZY_MAX_DIST
       ) {
-        return true;
+        best = FUZZY_SCORE;
       }
     }
-    return false;
+    return best;
   }
 }
