@@ -16,9 +16,12 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
-    "testMatch": ["**/*.test.ts"]
+    "testMatch": [
+      "**/*.test.ts"
+    ]
   },
   "dependencies": {
+    "lodash": "^4.17.23",
     "pg": "^8.13.3"
   },
   "devDependencies": {
