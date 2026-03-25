@@ -1,6 +1,7 @@
 import { VehicleRepository } from './vehicleRepository';
 import { InputService } from './inputReader';
 import { MatchingService } from './matchingService';
+import { VehicleExpander } from './vehicleExpander';
 import { DbService } from './db';
 
 async function main() {
@@ -10,8 +11,10 @@ async function main() {
   const matchingService = new MatchingService(inputService);
 
   const vehicles = await vehicleRepo.getAllWithListingCount();
+  const expander = new VehicleExpander();
+  const expanded = expander.expand(vehicles);
   const lines = inputService.readLines();
-  const results = matchingService.match(lines, vehicles);
+  const results = matchingService.match(lines, expanded);
 
   for (const { input, vehicleId, confidence } of results) {
     console.log(`Input: ${input}`);

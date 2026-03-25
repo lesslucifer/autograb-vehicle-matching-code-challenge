@@ -1,0 +1,11 @@
+{
+  "vw": "volkswagen",
+  "4x4": "four wheel drive",
+  "4wd": "four wheel drive",
+  "awd": "four wheel drive",
+  "rwd": "rear wheel drive",
+  "fwd": "front wheel drive",
+  "auto": "automatic",
+  "man": "manual",
+  "hybrid": "hybrid petrol"
+}
