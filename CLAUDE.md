@@ -36,7 +36,9 @@ listing (id, vehicle_id FK, url, price, kms)
 
 ### Testing & Quality
 
-- `npm run tsc` - TypeScript type checking (REQUIRED - run this to verify code quality. No other checks needed.)
+- `npm run tsc` - TypeScript type checking
+- `npm run test` - Unit tests
+- `npm run test:integration` - Final integration test
 
 ## Modularization
 

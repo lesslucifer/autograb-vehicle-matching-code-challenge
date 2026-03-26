@@ -5,8 +5,11 @@ import { VehicleRow } from './vehicleRepository';
 const matchingService = new MatchingService();
 const tokenizer = new TokenizerService();
 
-const scoreVehicle = (input: string, v: VehicleRow) =>
-  matchingService.scoreVehicle(tokenizer.tokenize(input), v);
+const scoreVehicle = (input: string, v: VehicleRow) => {
+  const index = tokenizer.buildNgramIndex(tokenizer.tokenize(input));
+  const [precomputed] = matchingService.precomputeVehicles([v]);
+  return matchingService.scoreVehicle(index, precomputed);
+};
 
 const makeVehicle = (overrides: Partial<VehicleRow> = {}): VehicleRow => ({
   id: '1',
@@ -71,13 +74,16 @@ describe('MatchingService.scoreVehicle', () => {
 });
 
 describe('MatchingService.match', () => {
+  const matchWith = (input: string, vehicles: VehicleRow[]) =>
+    matchingService.match(input, matchingService.precomputeVehicles(vehicles));
+
   it('returns no-match result when no vehicles given', () => {
-    const result = matchingService.match('toyota 86', []);
+    const result = matchWith('toyota 86', []);
     expect(result.vehicleId).toBe('');
   });
 
   it('returns no-match when input scores 0 against all vehicles', () => {
-    const result = matchingService.match('honda civic', [makeVehicle()]);
+    const result = matchWith('honda civic', [makeVehicle()]);
     expect(result.vehicleId).toBe('');
   });
 
@@ -86,27 +92,28 @@ describe('MatchingService.match', () => {
       makeVehicle({ id: '1', make: 'Toyota', model: '86' }),
       makeVehicle({ id: '2', make: 'Volkswagen', model: 'Golf' }),
     ];
-    const result = matchingService.match('toyota 86', vehicles);
+    const result = matchWith('toyota 86', vehicles);
     expect(result.vehicleId).toBe('1');
   });
 
   it('returns the original input string in the result', () => {
-    const result = matchingService.match('Toyota 86 GT Manual Petrol', [makeVehicle()]);
+    const result = matchWith('Toyota 86 GT Manual Petrol', [makeVehicle()]);
     expect(result.input).toBe('Toyota 86 GT Manual Petrol');
   });
 
   it('full match returns confidence 10', () => {
-    const result = matchingService.match('toyota 86 gt manual petrol rear wheel drive', [makeVehicle()]);
+    const result = matchWith('toyota 86 gt manual petrol rear wheel drive', [makeVehicle()]);
     expect(result.confidence).toBe(10);
   });
 
   it('make-only match returns confidence 3', () => {
-    const result = matchingService.match('toyota', [makeVehicle()]);
+    const result = matchWith('toyota', [makeVehicle()]);
     expect(result.confidence).toBe(3);
   });
 
   it('produces one result per matched line when used with map', () => {
-    const results = ['toyota', 'toyota 86'].map((input) => matchingService.match(input, [makeVehicle()]));
+    const precomputed = matchingService.precomputeVehicles([makeVehicle()]);
+    const results = ['toyota', 'toyota 86'].map((input) => matchingService.match(input, precomputed));
     expect(results).toHaveLength(2);
   });
 
@@ -114,21 +121,21 @@ describe('MatchingService.match', () => {
     it('prefers vehicle whose make appears in the input when scores are equal', () => {
       const toyota = makeVehicle({ id: 'toyota', make: 'Toyota', model: '86', badge: '', fuel_type: 'Petrol', transmission_type: 'Manual', drive_type: 'Rear Wheel Drive', listing_count: 1 });
       const honda  = makeVehicle({ id: 'honda',  make: 'Honda',  model: '86', badge: '', fuel_type: 'Petrol', transmission_type: 'Manual', drive_type: 'Rear Wheel Drive', listing_count: 1 });
-      const result = matchingService.match('toyota 86 petrol manual rear wheel drive', [honda, toyota]);
+      const result = matchWith('toyota 86 petrol manual rear wheel drive', [honda, toyota]);
       expect(result.vehicleId).toBe('toyota');
     });
 
     it('prefers vehicle with higher badge overlap when scores are equal', () => {
       const withBadge    = makeVehicle({ id: 'with-badge',    make: 'Toyota', model: '86', badge: 'GT',  listing_count: 1 });
       const withoutBadge = makeVehicle({ id: 'without-badge', make: 'Toyota', model: '86', badge: 'GTS', listing_count: 1 });
-      const result = matchingService.match('toyota 86 gt manual petrol rear wheel drive', [withoutBadge, withBadge]);
+      const result = matchWith('toyota 86 gt manual petrol rear wheel drive', [withoutBadge, withBadge]);
       expect(result.vehicleId).toBe('with-badge');
     });
 
     it('falls back to listing_count when all else is equal', () => {
       const popular = makeVehicle({ id: 'popular', listing_count: 10 });
       const rare    = makeVehicle({ id: 'rare',    listing_count: 1  });
-      const result = matchingService.match('toyota 86 gt manual petrol rear wheel drive', [rare, popular]);
+      const result = matchWith('toyota 86 gt manual petrol rear wheel drive', [rare, popular]);
       expect(result.vehicleId).toBe('popular');
     });
   });

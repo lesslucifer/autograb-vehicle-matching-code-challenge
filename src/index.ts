@@ -10,8 +10,9 @@ async function main() {
   const matchingService = new MatchingService();
 
   const vehicles = await vehicleRepo.getAllWithListingCount();
+  const precomputed = matchingService.precomputeVehicles(vehicles);
   const lines = inputService.readLines();
-  const results = lines.map((input) => matchingService.match(input, vehicles));
+  const results = lines.map((input) => matchingService.match(input, precomputed));
 
   for (const { input, vehicleId, confidence } of results) {
     console.log(`Input: ${input}`);

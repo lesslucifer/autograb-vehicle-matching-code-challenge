@@ -1,6 +1,6 @@
 import _ from 'lodash';
-import { VehicleRow } from './vehicleRepository';
-import { TokenizerService } from './tokenizer';
+import { VehicleRepository, VehicleRow } from './vehicleRepository';
+import { TokenizerService, NgramIndex } from './tokenizer';
 
 const FIELDS: Array<{ key: keyof VehicleRow; weight: number }> = [
   { key: 'make',              weight: 3 },
@@ -11,6 +11,17 @@ const FIELDS: Array<{ key: keyof VehicleRow; weight: number }> = [
   { key: 'drive_type',        weight: 1 },
 ];
 
+export interface PrecomputedField {
+  tokens: string[];
+  tokenNgrams: Array<Set<string>>;
+  weight: number;
+}
+
+export interface PrecomputedVehicle {
+  vehicle: VehicleRow;
+  fields: PrecomputedField[];
+}
+
 export interface MatchResult {
   input: string;
   vehicleId: string;
@@ -19,28 +30,37 @@ export interface MatchResult {
 
 export class MatchingService {
   private readonly tokenizer = new TokenizerService();
+  private readonly vehicleRepo = new VehicleRepository();
 
-  scoreVehicle(inputTokens: string[], vehicle: VehicleRow): number {
+  precomputeVehicles(vehicles: VehicleRow[]): PrecomputedVehicle[] {
+    return vehicles.map((vehicle) => ({
+      vehicle,
+      fields: FIELDS.map(({ key, weight }) => {
+        const tokens = this.tokenizer.tokenize(String(vehicle[key]));
+        return {
+          tokens,
+          tokenNgrams: tokens.map((t) => this.tokenizer.ngrams(t)),
+          weight,
+        };
+      }),
+    }));
+  }
+
+  scoreVehicle(index: NgramIndex, precomputed: PrecomputedVehicle): number {
     let score = 0;
-    for (const { key, weight } of FIELDS) {
-      const fieldTokens = this.tokenizer.tokenize(String(vehicle[key]));
-      const overlap = this.tokenizer.scoreTokenOverlap(inputTokens, fieldTokens);
+    for (const { tokens, tokenNgrams, weight } of precomputed.fields) {
+      const overlap = this.tokenizer.scoreTokenOverlap(index, tokens, tokenNgrams);
       score += overlap * weight;
     }
     return score;
   }
 
-  private highTierScore(inputTokens: string[], vehicle: VehicleRow): number {
-    return _.sumBy(['model', 'badge'] as const, (k) =>
-      this.tokenizer.scoreTokenOverlap(inputTokens, this.tokenizer.tokenize(vehicle[k]))
-    );
-  }
-
-  match(input: string, vehicles: VehicleRow[]): MatchResult {
+  match(input: string, precomputed: PrecomputedVehicle[]): MatchResult {
     const inputTokens = this.tokenizer.tokenize(input);
+    const inputNGram = this.tokenizer.buildNgramIndex(inputTokens);
 
-    const top = _(vehicles)
-      .map((v) => ({ vehicle: v, score: this.scoreVehicle(inputTokens, v) }))
+    const top = _(precomputed)
+      .map((p) => ({ vehicle: p.vehicle, score: this.scoreVehicle(inputNGram, p) }))
       .filter((c) => c.score > 0)
       .orderBy([
         (c) => -c.score,

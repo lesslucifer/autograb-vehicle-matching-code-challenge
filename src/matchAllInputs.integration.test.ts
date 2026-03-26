@@ -1,14 +1,15 @@
-import { MatchingService, MatchResult } from './matchingService';
-import { VehicleRepository, VehicleRow } from './vehicleRepository';
+import { MatchingService, MatchResult, PrecomputedVehicle } from './matchingService';
+import { VehicleRepository } from './vehicleRepository';
 import { DbService } from './db';
 
 const matchingService = new MatchingService();
 const vehicleRepo = new VehicleRepository();
 
-let vehicles: VehicleRow[];
+let precomputed: PrecomputedVehicle[];
 
 beforeAll(async () => {
-  vehicles = await vehicleRepo.getAllWithListingCount();
+  const vehicles = await vehicleRepo.getAllWithListingCount();
+  precomputed = matchingService.precomputeVehicles(vehicles);
 });
 
 afterAll(async () => {
@@ -42,11 +43,11 @@ describe('Integration: match all input lines against real DB', () => {
   let results: MatchResult[];
 
   beforeAll(() => {
-    results = inputs.map((input) => matchingService.match(input, vehicles));
+    results = inputs.map((input) => matchingService.match(input, precomputed));
   });
 
   it('loads vehicles from the database', () => {
-    expect(vehicles.length).toBeGreaterThan(0);
+    expect(precomputed.length).toBeGreaterThan(0);
   });
 
   it('produces a result for every input line', () => {
