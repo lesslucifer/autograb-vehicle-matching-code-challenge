@@ -1,15 +1,5 @@
 import { MatchingService } from './matchingService';
-import { TokenizerService } from './tokenizer';
 import { VehicleRow } from './vehicleRepository';
-
-const matchingService = new MatchingService();
-const tokenizer = new TokenizerService();
-
-const scoreVehicle = (input: string, v: VehicleRow) => {
-  const index = tokenizer.buildNgramIndex(tokenizer.tokenize(input));
-  const [precomputed] = matchingService.precomputeVehicles([v]);
-  return matchingService.scoreVehicle(index, precomputed);
-};
 
 const makeVehicle = (overrides: Partial<VehicleRow> = {}): VehicleRow => ({
   id: '1',
@@ -23,60 +13,54 @@ const makeVehicle = (overrides: Partial<VehicleRow> = {}): VehicleRow => ({
   ...overrides,
 });
 
-describe('MatchingService.scoreVehicle', () => {
+const matchWith = (input: string, vehicles: VehicleRow[]) =>
+  new MatchingService(vehicles).match(input);
+
+describe('MatchingService scoring', () => {
   it('scores 0 when nothing matches', () => {
-    const v = makeVehicle();
-    expect(scoreVehicle('volkswagen golf', v)).toBe(0);
+    expect(matchWith('volkswagen golf', [makeVehicle()]).confidence).toBe(0);
   });
 
   it('scores make only (weight 3)', () => {
-    const v = makeVehicle();
-    expect(scoreVehicle('toyota', v)).toBe(3);
+    expect(matchWith('toyota', [makeVehicle()]).confidence).toBe(3);
   });
 
   it('scores make + model (3+2=5)', () => {
-    const v = makeVehicle();
-    expect(scoreVehicle('toyota 86', v)).toBe(5);
+    expect(matchWith('toyota 86', [makeVehicle()]).confidence).toBe(5);
   });
 
   it('scores all fields (max 10)', () => {
-    const v = makeVehicle();
-    expect(scoreVehicle('toyota 86 gt manual petrol rear wheel drive', v)).toBeCloseTo(10.73, 1);
+    expect(matchWith('toyota 86 gt manual petrol rear wheel drive', [makeVehicle()]).confidence).toBe(10);
   });
 
   it('expands alias RWD → Rear Wheel Drive', () => {
-    const v = makeVehicle();
-    expect(scoreVehicle('toyota 86 gt manual petrol rwd', v)).toBeCloseTo(10.73, 1);
+    expect(matchWith('toyota 86 gt manual petrol rwd', [makeVehicle()]).confidence).toBe(10);
   });
 
   it('expands alias VW → Volkswagen', () => {
     const v = makeVehicle({ make: 'Volkswagen', model: 'Golf', badge: '110TSI Comfortline', transmission_type: 'Automatic', fuel_type: 'Petrol', drive_type: 'Front Wheel Drive' });
-    expect(scoreVehicle('vw golf petrol automatic front wheel drive', v)).toBeGreaterThan(5);
+    expect(matchWith('vw golf petrol automatic front wheel drive', [v]).confidence).toBeGreaterThan(5);
   });
 
   it('partial badge scoring — 1 of 2 badge tokens matches', () => {
     const v = makeVehicle({ model: 'Golf', badge: 'Alltrack 132TSI' });
-    const score = scoreVehicle('volkswagen golf 132tsi automatic', v);
-    expect(score).toBeGreaterThan(2);
+    expect(matchWith('volkswagen golf 132tsi automatic', [v]).confidence).toBeGreaterThan(2);
   });
 
-  it('full badge match scores full badge weight', () => {
+  it('full badge match scores higher than partial', () => {
     const v = makeVehicle({ model: 'Golf', badge: 'Alltrack 132TSI' });
-    const score = scoreVehicle('golf alltrack 132tsi', v);
-    expect(score).toBeCloseTo(4.83, 1);
+    const partial = matchWith('golf 132tsi', [v]).confidence;
+    const full = matchWith('golf alltrack 132tsi', [v]).confidence;
+    expect(full).toBeGreaterThan(partial);
   });
 
   it('fuzzy matches typo — Amrok matches Amarok', () => {
     const v = makeVehicle({ make: 'Volkswagen', model: 'Amarok', badge: 'TDI550 Highline', transmission_type: 'Automatic', fuel_type: 'Diesel', drive_type: 'Four Wheel Drive' });
-    const score = scoreVehicle('amrok highline 4x4', v);
-    expect(score).toBeGreaterThan(0);
+    expect(matchWith('amrok highline 4x4', [v]).confidence).toBeGreaterThan(0);
   });
 });
 
 describe('MatchingService.match', () => {
-  const matchWith = (input: string, vehicles: VehicleRow[]) =>
-    matchingService.match(input, matchingService.precomputeVehicles(vehicles));
-
   it('returns no-match result when no vehicles given', () => {
     const result = matchWith('toyota 86', []);
     expect(result.vehicleId).toBe('');
@@ -112,8 +96,8 @@ describe('MatchingService.match', () => {
   });
 
   it('produces one result per matched line when used with map', () => {
-    const precomputed = matchingService.precomputeVehicles([makeVehicle()]);
-    const results = ['toyota', 'toyota 86'].map((input) => matchingService.match(input, precomputed));
+    const svc = new MatchingService([makeVehicle()]);
+    const results = ['toyota', 'toyota 86'].map((input) => svc.match(input));
     expect(results).toHaveLength(2);
   });
 

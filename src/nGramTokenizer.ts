@@ -2,7 +2,7 @@ import _ from 'lodash';
 import aliases from './aliases.json';
 
 const NGRAM_SIZE = 3;
-const DICE_FUZZY_THRESHOLD = 0.6;
+export const DICE_FUZZY_THRESHOLD = 0.6;
 const PAD_CHAR = '$';
 
 export interface NgramIndex {
@@ -11,7 +11,23 @@ export interface NgramIndex {
   candidateNgrams: Map<number, Set<string>>;
 }
 
-export class TokenizerService {
+export interface TokenLocation {
+  vehicleIdx: number;
+  fieldIdx: number;
+  tokenIdx: number;
+}
+
+export interface VehicleTokenIndex {
+  tokenLocations: Map<string, TokenLocation[]>;
+  ngramToTokens: Map<string, Set<string>>;
+  tokenNgrams: Map<string, Set<string>>;
+}
+
+export interface IndexableVehicle {
+  fields: Array<{ tokens: string[] }>;
+}
+
+export class NGramTokenizer {
   private readonly compiledAliases: Array<{ re: RegExp; canonical: string }>;
   private readonly tokenCache = new Map<string, string[]>();
   private readonly ngramCache = new Map<string, Set<string>>();
@@ -96,7 +112,40 @@ export class TokenizerService {
     return { exactMap, ngramMap, candidateNgrams };
   }
 
-  private diceCoefficient(a: Set<string>, b: Set<string>): number {
+  buildVehicleTokenIndex(vehicles: IndexableVehicle[]): VehicleTokenIndex {
+    const tokenLocations = new Map<string, TokenLocation[]>();
+    const ngramToTokens = new Map<string, Set<string>>();
+    const tokenNgrams = new Map<string, Set<string>>();
+
+    for (let vehicleIdx = 0; vehicleIdx < vehicles.length; vehicleIdx++) {
+      const { fields } = vehicles[vehicleIdx];
+      for (let fieldIdx = 0; fieldIdx < fields.length; fieldIdx++) {
+        const { tokens } = fields[fieldIdx];
+        for (let tokenIdx = 0; tokenIdx < tokens.length; tokenIdx++) {
+          const token = tokens[tokenIdx];
+          const loc: TokenLocation = { vehicleIdx, fieldIdx, tokenIdx };
+
+          let locs = tokenLocations.get(token);
+          if (!locs) { locs = []; tokenLocations.set(token, locs); }
+          locs.push(loc);
+
+          if (!tokenNgrams.has(token)) {
+            const grams = this.ngrams(token);
+            tokenNgrams.set(token, grams);
+            for (const ng of grams) {
+              let tokens = ngramToTokens.get(ng);
+              if (!tokens) { tokens = new Set(); ngramToTokens.set(ng, tokens); }
+              tokens.add(token);
+            }
+          }
+        }
+      }
+    }
+
+    return { tokenLocations, ngramToTokens, tokenNgrams };
+  }
+
+  diceCoefficient(a: Set<string>, b: Set<string>): number {
     let intersection = 0;
     for (const g of a) {
       if (b.has(g)) intersection++;

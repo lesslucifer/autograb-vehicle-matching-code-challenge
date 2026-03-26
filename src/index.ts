@@ -7,12 +7,11 @@ async function main() {
   const dbService = DbService.INST;
   const vehicleRepo = new VehicleRepository();
   const inputService = new InputService();
-  const matchingService = new MatchingService();
 
   const vehicles = await vehicleRepo.getAllWithListingCount();
-  const precomputed = matchingService.precomputeVehicles(vehicles);
+  const matchingService = new MatchingService(vehicles);
   const lines = inputService.readLines();
-  const results = lines.map((input) => matchingService.match(input, precomputed));
+  const results = lines.map((input) => matchingService.match(input));
 
   for (const { input, vehicleId, confidence } of results) {
     console.log(`Input: ${input}`);
